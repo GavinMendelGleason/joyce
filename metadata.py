@@ -134,7 +134,7 @@ def get_training_segments():
     segments = [seg for (seg,) in cursor]
     return segments
 
-def segment(db,docid,maxsize=1000): 
+def segment(db,docid,maxsize=500): 
     SQL = """select document from documents 
              where document_id=%(document_id)s"""
     cursor = db.cursor()
@@ -172,6 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--author', help='Specify the author for this traunch', default='Unknown')
     parser.add_argument('--type', help="Type of input set, 'test', 'train'", default='train')
     parser.add_argument('--encoding', help="Encoding type for import", default='latin_1')
+    parser.add_argument('--seg-size', help="Size of segments", default=2000)
     args = vars(parser.parse_args())
 
     setupLogging() 
@@ -226,6 +227,11 @@ if __name__ == '__main__':
             
         db.commit()
 
+    ELIM_SEGMENTS = """ 
+    delete from segments;
+    """
+    cursor.execute(ELIM_SEGMENTS)
+
     # Segment previously unsegmented documents: 
     SEGMENTS = """
     select document_id from documents
@@ -235,7 +241,7 @@ if __name__ == '__main__':
     documents = []
     cursor.execute(SEGMENTS)
     for (document_id,) in cursor: 
-        segment(db,document_id)
+        segment(db,document_id,maxsize=int(args['seg_size']))
 
     db.commit()
         

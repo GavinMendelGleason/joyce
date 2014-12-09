@@ -193,24 +193,27 @@ if __name__ == '__main__':
     parser.add_argument('--resurrect', help='Resurrect NNLM from pickle file', action="store_const", const=True)
     parser.add_argument('--word-embeddings', help='File containing word embeddings in word2vec format', default='./word-embeddings.w2v')
     parser.add_argument('--token-type', help='A type of token to use, one of (char,word)')
+    parser.add_argument('--train', help='Train the network', action="store_const", const=True)
+    parser.add_argument('--examine', help='Examine a document with the network')
     args = vars(parser.parse_args())
 
     w2v_model = Word2Vec.load(args['word_embeddings'])
     word_size = w2v_model.size
 
-    segments = metadata.get_training_segments()
-    features = metadata.get_joyce_or_not_features()
-    # First we have to prep the segments using the word_2_vec and parsing approach
-    for segment in segments: 
-        matrix = []
-        for sentence in Sentences(parse_segment):
-            for windows in SkipGram(sentence,args['window_size']): 
-                vectors = []
-                for gram in skip_gram: 
-                    vectors.append(w2v_model[gram])
-                matrix.append(numpy.concatenate(vectors))
+    if(args['train']):
+        segments = metadata.get_training_segments()
+        features = metadata.get_joyce_or_not_features()
+        # First we have to prep the segments using the word_2_vec and parsing approach
+        for segment in segments: 
+            matrix = []
+            for sentence in Sentences(parse_segment):
+                for windows in SkipGram(sentence,args['window_size']): 
+                    vectors = []
+                    for gram in skip_gram: 
+                        vectors.append(w2v_model[gram])
+                    matrix.append(numpy.concatenate(vectors))
                 
-    mlpnnlm = MLPNNLM(segments,features,
+        mlpnnlm = MLPNNLM(segments,features,
                       backing_store=args['backing_store'], 
                       batch_size=args['batch_size'],
                       n_train_batches=int(args['n_train_batches']), 
@@ -218,6 +221,13 @@ if __name__ == '__main__':
                       
                   )
     
-    mlpnnlm.train()
+        mlpnnlm.train()
     
-    mlpnnlm 
+    if('examine' in args): 
+        path = args['examine'] 
+        with open(path, 'rb') as f: 
+            pass
+
+        # not yet implemented
+        s = metadata.read_file(args['examine'])
+        segments = metadata.chunkify(s)

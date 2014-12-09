@@ -7,9 +7,12 @@ from os import getenv, path
 from sklearn.svm import LinearSVC, SVC, NuSVC
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn import cross_validation
 import metadata
-import cPickle
+import cPickle as pickle
+#import pickle
 import numpy
+import scipy 
 
 def document(path): 
     with open (path, "r") as myfile:
@@ -30,7 +33,7 @@ def xvalidation_subsets(tfidf,features,k):
     subsets = []
     ## lost tooth approach
     for i in xrange(size, length-size, size): 
-        new_tfidf = numpy.concatenate([(tfidf[0:i]).toarray(),(tfidf[i+size:length]).toarray()],axis=0)
+        new_tfidf = scipy.sparse.coo_matrix.tocsc(numpy.concatenate([(tfidf[0:i]).toarray(),(tfidf[i+size:length]).toarray()],axis=0))
         new_features = features[0:i] + features[i+size:length]
         subsets.append((new_tfidf,new_features))
 
@@ -50,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--backing-store', help='Path of svm backing store', default='backing_store.pkl')
     parser.add_argument('--cross-validations', help="number of cross-validation segments", default="5")
     parser.add_argument('--alg', help="One of SVC, LinearSVC, or NuSVC", default ='NuSVC')
-    parser.add_argument('--params', help="Algorithm parameters as dictionary string", default='{}')
+    parser.add_argument('--params', help="Algorithm parameters as dictionary string", default="{}")
     parser.add_argument('--ngrams', help="Pair of min, max n-gram size", default='(3,3)')
     args = vars(parser.parse_args())
     
@@ -74,39 +77,40 @@ if __name__ == '__main__':
         features = metadata.get_joyce_or_not_features()
         print "# of Features: %s" % len(features) 
 
-        vec = CountVectorizer(min_df=1, ngram_range=args['ngrams'], analyzer='char_wb')
+        #vec = CountVectorizer(min_df=1, ngram_range=args['ngrams'], analyzer='char_wb')
+        #counts = vec.fit_transform(segments)
+
+        vec = CountVectorizer(min_df=1, ngram_range=(1,3), analyzer='word')
         counts = vec.fit_transform(segments)
         
         transformer = TfidfTransformer() 
+        tfidf = transformer.fit_transform(counts) # counts
         
-        tfidf = transformer.fit_transform(counts)
+        if args['alg'] == 'SVC': 
+            svm = SVC(**args['params'])
+        elif args['alg'] == 'NuSVC':
+            svm = NuSVC(**args['params'])
+        elif args['alg'] == 'LinearSVC': 
+            svm = LinearSVC(**args['params'])
 
-        # do we really want a linear? 
-        best = None
-        best_svm = None
-        for (tfidf_n,features_n) in xvalidation_subsets(tfidf,features,int(args['cross_validations'])): 
-            ## should pass params            
-            if args['alg'] == 'SVC': 
-                svm = SVC(**args['params'])
-            elif args['alg'] == 'NuSVC':
-                svm = NuSVC(**args['params'])
-            elif args['alg'] == 'LinearSVC': 
-                svm = LinearSVC(**args['params'])
-            svm.fit(tfidf_n,features_n)
-            score = svm.score(tfidf.toarray(),features)
-            print "Current score: %s" % score
-            if not best or best < score: 
-                best = score
-                best_svm = svm 
+        features = numpy.array(features)
+        X_train, X_test, y_train, y_test = cross_validation.train_test_split(tfidf,features,test_size=0.4, random_state=0)
+        clf = svm.fit(X_train, y_train)
+        score = clf.score(X_test, y_test)  
+        cross = cross_validation.cross_val_score(svm, tfidf, y=features, cv=5)
 
-        print "Best score: %s" % best
+        print "Score: %s" % score
+        print "Cross: %s" % cross
         f = open(args['backing_store'], 'wb')
-        cPickle.dump((vec,transformer,svm),f)
+        p = pickle.Pickler(f) 
+        p.fast = True 
+        p.dump((vec,transformer,svm)) # d is your dictionary
+        #cPickle.dump((vec,transformer,svm),f)
         f.close()
 
     if path.isfile(args['backing_store']):        
         f = open(args['backing_store'], 'rb')
-        (vec,transformer,svm) = cPickle.load(f)
+        (vec,transformer,svm) = pickle.load(f)
         f.close()
     else: 
         sys.exit("Unable to load backing store")
@@ -117,12 +121,12 @@ if __name__ == '__main__':
         s = metadata.read_file(args['examine'])
         segments = metadata.chunkify(s)
         counts = vec.transform(segments) 
-        tfidf = transformer.transform(counts) 
-        
-        results = svm.predict(tfidf.toarray())
+        tfidf = transformer.transform(counts).toarray()
+
+        results = svm.predict(tfidf)
         proba = None
         if 'predict_proba' in dir(svm): 
-            proba = svm.predict_proba(tfidf.toarray())
+            proba = svm.predict_proba(tfidf)
         pos = filter(lambda x: x==1, results)
         neg = filter(lambda x: x==0, results)
         print "# pos: %s" % len(pos)

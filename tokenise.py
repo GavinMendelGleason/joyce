@@ -3,7 +3,8 @@
 class NGrams(object): 
     """NGrams will return all character n-grams of size N
        from a document."""
-    def __init__(self, document, size=7): 
+    def __init__(self, document, size=7, case_fold=False): 
+        self.case_fold = case_fold
         self.document = document
 
     def __iter__(self): 
@@ -54,6 +55,40 @@ class NGrams(object):
                 else:
                     raise StopIteration()
     
+class SkipGrams(object): 
+    """Take a document and create SkipGram pairs from it."""
+    def __init__(self,sentence,window_size=2,left_padding='<s>',right_padding='</s>'):
+        self.left_padding = left_padding
+        self.right_padding = right_padding
+        self.left = []
+        self.right = []
+        self.sentence = sentence
+        self.window_size = window_size
+        self.current = -window_size
+        self.length = len(self.sentence)
+
+    def __iter__(self):
+        return self
+
+    # python 3
+    def next(self): 
+        return self.__next__()
+    
+    def __next__(self): 
+        if self.current + self.window_size >= self.length:
+            raise StopIteration()
+        else:
+            left_slice = [self.left_padding] * max(0, -self.current)
+            right_slice = [self.right_padding] * max(0, self.current + self.window_size * 2 + 1 - self.length)
+            left_start = max(0,self.current)            
+            left_end = max(0,self.current+self.window_size)
+            right_start = min(self.length-1, self.current+self.window_size+1)
+            right_end = min(self.length-1, self.current+self.window_size*2+1)
+            left_result = left_slice + self.sentence[left_start:left_end] 
+            right_result = self.sentence[right_start:right_end] + right_slice
+            print self.current
+            self.current += 1
+            return (left_result,right_result)
 
 class Sentences(object): 
     """Sentences will return an iterator object 
@@ -61,9 +96,11 @@ class Sentences(object):
     (which is a character stream) 
     as a token list in turn.
     """
-    def __init__(self, document, casefold=True, left_padding='<s>', right_padding='</s>'): 
-        self.left_padding = left_padding
-        self.right_padding = right_padding
+    def __init__(self, document, casefold=True): 
+
+        if type(document) == str: 
+            document = iter(document)
+
         self.words = []
         self.stack = ''
         self.document = document
@@ -89,7 +126,7 @@ class Sentences(object):
     def __next__(self): 
         if self.empty: 
             raise StopIteration()
-        words = [self.left_padding]
+        words = []
         while True:
             # if this raises StopIteration() are we grand?
             try: 
@@ -99,7 +136,7 @@ class Sentences(object):
                         words += self.process_token(self.stack)                
                         self.stack = ''
                     words.append(char)
-                    return words + [self.right_padding]
+                    return words
                 elif char == r' ' or char == '\n' or char == '\r': 
                     if not self.stack == '':
                         words += self.process_token(self.stack)
@@ -114,7 +151,7 @@ class Sentences(object):
                 # if there is something to return, we stop iteration 
                 # on the next go, otherwise stop now.
                 if words != []:
-                    return words + self.right_padding
+                    return words
                 else:
                     raise StopIteration()
 
