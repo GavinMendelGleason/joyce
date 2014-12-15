@@ -177,9 +177,7 @@ class MLPNNLM(object):
 
 
 __LOG_FORMAT__ = "%(asctime)-15s %(message)s"
-__LIB_PATH__ = getenv("HOME") + '/lib/nn-ling/'
-__DEFAULT_PATH__ = __LIB_PATH__ + 'corpus/'
-__LOG_PATH__ = __LIB_PATH__ + 'nn-ling.log'
+__LOG_PATH__ = './joyce-predict.log'
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description='Run NNLM on pre-trained word embeddings')
     parser.add_argument('--log', help='Log file', default=__LOG_PATH__)
@@ -197,12 +195,20 @@ if __name__ == '__main__':
     parser.add_argument('--examine', help='Examine a document with the network')
     args = vars(parser.parse_args())
 
+    # set up logging
+    root = logging.getLogger()
+    if root.handlers:
+        for handler in root.handlers:
+            root.removeHandler(handler)
+    logging.basicConfig(filename=args['log'],level=logging.INFO,
+                        format=__LOG_FORMAT__)
+
     w2v_model = Word2Vec.load(args['word_embeddings'])
     word_size = w2v_model.size
 
     if(args['train']):
         segments = metadata.get_training_segments()
-        features = metadata.get_joyce_or_not_features()
+        # features = metadata.get_joyce_or_not_features()
         # First we have to prep the segments using the word_2_vec and parsing approach
         for segment in segments: 
             matrix = []

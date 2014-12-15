@@ -86,9 +86,10 @@ class SkipGrams(object):
             right_end = min(self.length-1, self.current+self.window_size*2+1)
             left_result = left_slice + self.sentence[left_start:left_end] 
             right_result = self.sentence[right_start:right_end] + right_slice
+            result = self.sentence[left_end+1]
             print self.current
             self.current += 1
-            return (left_result,right_result)
+            return (left_result,result,right_result)
 
 class Sentences(object): 
     """Sentences will return an iterator object 
