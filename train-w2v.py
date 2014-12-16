@@ -5,9 +5,11 @@ such as the one given by Google.
 
 Currently simply reusing the corpus of segments.
 """
-
+import argparse
 from gensim.models import Word2Vec
-import tokenise
+from tokenise import Sentences
+import logging
+import metadata
 
 __LOG_FORMAT__ = "%(asctime)-15s %(message)s"
 __LOG_PATH__ = './joyce-predict.log'
@@ -29,12 +31,13 @@ if __name__ == '__main__':
     # fix chunking to respect sentence boundaries
     segments = metadata.get_training_segments()
     
-    model = Word2Vec([], size=100, window=5, min_count=5, workers=4)
-
+    model = None
     for segment in segments: 
-        model.train(Sentences(segment))
-        
-    f = open(args['file'], 'wb')
-    model.save(f)
+        if model: 
+            model.train(Sentences(segment))
+        else: 
+            model = Word2Vec(Sentences(segment), size=100, window=5, min_count=5, workers=4)
+
+    model.save(args['file'])
     
     

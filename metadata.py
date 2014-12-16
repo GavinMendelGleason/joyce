@@ -92,9 +92,9 @@ def setupLogging():
                         format=__LOG_FORMAT__)
 
 def last_word_index(chunk,maxsize):
-    m = re.search('\s(\w+)\s*$', chunk[0:maxsize], re.MULTILINE)
+    m = re.search('(\.|!|\?)(\w|\s)*$', chunk[0:maxsize], re.MULTILINE)
     if m: 
-        return m.start()
+        return m.start() + 1
 
 def chunkify(doctext,maxsize=1000, underflow_limit=50):
     doctext = collapse_separators(doctext)

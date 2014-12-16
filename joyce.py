@@ -25,7 +25,8 @@ def create_corpus(files):
         documents.append(document(p))
     # need to keep track of the source.
     return documents
-    
+
+# Using scikit learn instead    
 def xvalidation_subsets(tfidf,features,k): 
     block = []
     length = tfidf.shape[0]
@@ -47,14 +48,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Playing with word embeddings.')
     parser.add_argument('--log', help='Log file', default=__LOG_PATH__)
     parser.add_argument('--train', help='Start training from DB', action='store_const', const=True, default=False)
-
     # Should we have this available for a single examination of a document?
     parser.add_argument('--examine', help='Examine a document', default=None)
     parser.add_argument('--backing-store', help='Path of svm backing store', default='backing_store.pkl')
     parser.add_argument('--cross-validations', help="number of cross-validation segments", default="5")
-    parser.add_argument('--alg', help="One of SVC, LinearSVC, or NuSVC", default ='NuSVC')
+    parser.add_argument('--alg', help="One of [SVC, LinearSVC, NuSVC]", default ='NuSVC')
     parser.add_argument('--params', help="Algorithm parameters as dictionary string", default="{}")
-    parser.add_argument('--ngrams', help="Pair of min, max n-gram size", default='(3,3)')
+    parser.add_argument('--ngrams', help="Pair of (min, max) n-gram size", default='(4,4)')
+    parser.add_argument('--analyser', help="Type of tokenisation, one of [word,char_wb]", default='word')
     args = vars(parser.parse_args())
     
     # evaluate commandline params of python objects
@@ -70,17 +71,19 @@ if __name__ == '__main__':
     logging.basicConfig(filename=args['log'],level=logging.INFO,
                         format=__LOG_FORMAT__)
     
+    logging.info(str(args))
+
     #files = joyce + other
     if args['train']: 
         segments = metadata.get_training_segments()
-        print "# of Segments: %s" % len(segments)
+        #print "# of Segments: %s" % len(segments)
         features = metadata.get_joyce_or_not_features()
-        print "# of Features: %s" % len(features) 
+        #print "# of Features: %s" % len(features) 
 
         #vec = CountVectorizer(min_df=1, ngram_range=args['ngrams'], analyzer='char_wb')
         #counts = vec.fit_transform(segments)
 
-        vec = CountVectorizer(min_df=1, ngram_range=(1,3), analyzer='word')
+        vec = CountVectorizer(min_df=1, ngram_range=(1,3), analyzer=args['analyser'])
         counts = vec.fit_transform(segments)
         
         transformer = TfidfTransformer() 
@@ -99,13 +102,12 @@ if __name__ == '__main__':
         score = clf.score(X_test, y_test)  
         cross = cross_validation.cross_val_score(svm, tfidf, y=features, cv=5)
 
-        print "Score: %s" % score
-        print "Cross: %s" % cross
+        logging.info("Score: %s" % score)
+        logging.info("Five way cross validation: %s" % cross)
         f = open(args['backing_store'], 'wb')
         p = pickle.Pickler(f) 
         p.fast = True 
         p.dump((vec,transformer,svm)) # d is your dictionary
-        #cPickle.dump((vec,transformer,svm),f)
         f.close()
 
     if path.isfile(args['backing_store']):        
@@ -129,16 +131,16 @@ if __name__ == '__main__':
             proba = svm.predict_proba(tfidf)
         pos = filter(lambda x: x==1, results)
         neg = filter(lambda x: x==0, results)
-        print "# pos: %s" % len(pos)
-        print "# neg: %s" % len(neg)
-        print "Segments classified: %s %%" % (len(pos) / float(len(results)) * 100)
+        logging.info("# pos: %s" % len(pos))
+        logging.info("# neg: %s" % len(neg))
+        logging.info("Segments classified: %s %%" % (len(pos) / float(len(results)) * 100))
         try: 
             if proba <> None: 
                 no = [x for [x, y] in proba]
                 yes = [y for [x, y] in proba]
-                print "Mean probability of classifications:  No: %s Yes: %s" % (numpy.mean(no), numpy.mean(yes))
+                logging.info("Mean probability of classifications:  No: %s Yes: %s" % (numpy.mean(no), numpy.mean(yes)))
         except Exception as e: 
-            print e
+            logging.error(str(e))
 
 
 

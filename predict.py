@@ -1,32 +1,36 @@
 #!/usr/bin/env python
 
+"""
+This programme uses a 3 layer system in an attempt to guess the words in a corpus based on context.  The idea being that if it is trained well on a particular author it can be discriminative on those texts which are not going to be representative.  Initial input vectors will come from word embeddings trained on a much large corpus.
+
+Future Work: 
+
+It might be possible to create a logistic regression approach to evaluation of distances from guess to the actual author out of a number of potential authors for segments by adding a further layer.
+"""
+
 import theano.tensor as T
 import time 
 import cPickle 
 import metadata
 from gensim.models import Word2Vec
-from tokenise import Sentences, SkipGram
-
-"""
-This programme will use a 3 layer system in an attempt to guess the words in a corpus based on context.  The idea being that if it is trained well on a particular author it can be discriminative on those texts which are not going to be representative.  Initial input vectors will come from word embeddings trained on a much large corpus.
-"""
-
+from tokenise import Sentences, SkipGrams
+import argparse 
+import logging 
+import os 
 
 ## First, structure 
 
 class MLPNNLM(object): 
     def __init__(self, X, y, word_size = 100, 
                  window_size=3, learning_rate=0.001, 
-                 hidden_size=100, backing_store=None, 
+                 hidden_size=100, backing_store='./nnlm.pkl', 
                  n_epochs=100, n_train_batches=100, 
                  batch_size=100
              ): 
         self.batch_size=batch_size
         self.n_epochs=n_epochs
         self.n_train_batches=n_train_batches
-        if self.backing_store:
-            self.backing_store = backing_store
-        else: 
+        self.backing_store = backing_store
             
         self.X_train, X_pretest, self.y_train, y_pretest = cross_validation.train_test_split(X,y,test_size=0.6, random_state=0)
         self.X_test, self.X_valid, self.y_test, self.y_valid = cross_validation.train_test_split(X_pretest,y_pretest,test_size=0.5, random_state=0)
@@ -41,7 +45,7 @@ class MLPNNLM(object):
             high=numpy.sqrt(6. / (layer1_size + layer2_size)),
             size=(layer1_size, layer2_size)), dtype=theano.config.floatX)
         self.W = theano.shared(value=W_values, name='W')
-        self.b1_values = = numpy.asarray(rng.uniform(
+        self.b1_values = numpy.asarray(rng.uniform(
             low=-numpy.sqrt(6. / layer2_size), 
             high=numpy.sqrt(6. / layer2_size),
             size=(layer2_size,)), dtype=theano.config.floatX)
@@ -103,7 +107,7 @@ class MLPNNLM(object):
         cPickle.dump(self.__dict__,f,2)
         f.close()
         
-    def train_nn(self): 
+    def train(self): 
         """Train the parameters for the neural network. """
 
         patience = 100000  # look as this many examples regardless
@@ -189,10 +193,10 @@ if __name__ == '__main__':
     parser.add_argument('--n-epochs', help='Number of epochs', default = "100")
     parser.add_argument('--backing-store', help='Name of NNLM pickle file', default='./nnlm.pkl')
     parser.add_argument('--resurrect', help='Resurrect NNLM from pickle file', action="store_const", const=True)
-    parser.add_argument('--word-embeddings', help='File containing word embeddings in word2vec format', default='./word-embeddings.w2v')
+    parser.add_argument('--word-embeddings', help='File containing word embeddings in word2vec format', default='./words.w2v')
     parser.add_argument('--token-type', help='A type of token to use, one of (char,word)')
     parser.add_argument('--train', help='Train the network', action="store_const", const=True)
-    parser.add_argument('--examine', help='Examine a document with the network')
+    parser.add_argument('--examine', help='Examine a document with the network', action="store_const", const=True)
     args = vars(parser.parse_args())
 
     # set up logging
@@ -203,23 +207,28 @@ if __name__ == '__main__':
     logging.basicConfig(filename=args['log'],level=logging.INFO,
                         format=__LOG_FORMAT__)
 
-    w2v_model = Word2Vec.load(args['word_embeddings'])
-    word_size = w2v_model.size
+    if os.path.isfile(args['word_embeddings']):
+        w2v_model = Word2Vec.load(args['word_embeddings'])
+
+    
+    word_size = w2v_model.layer1_size
 
     if(args['train']):
         segments = metadata.get_training_segments()
         # features = metadata.get_joyce_or_not_features()
         # First we have to prep the segments using the word_2_vec and parsing approach
+        features = []
+        matrix = []
         for segment in segments: 
-            matrix = []
-            for sentence in Sentences(parse_segment):
-                for windows in SkipGram(sentence,args['window_size']): 
+            for sentence in Sentences(segment):
+                for (left,word,right) in SkipGrams(sentence,int(args['window_size'])): 
                     vectors = []
-                    for gram in skip_gram: 
+                    for gram in left+right: 
                         vectors.append(w2v_model[gram])
                     matrix.append(numpy.concatenate(vectors))
-                
-        mlpnnlm = MLPNNLM(segments,features,
+                    features.append(w2v_model[word])
+
+        mlpnnlm = MLPNNLM(matrix,features,
                       backing_store=args['backing_store'], 
                       batch_size=args['batch_size'],
                       n_train_batches=int(args['n_train_batches']), 
@@ -229,7 +238,7 @@ if __name__ == '__main__':
     
         mlpnnlm.train()
     
-    if('examine' in args): 
+    if('examine' in args and args['examine']): 
         path = args['examine'] 
         with open(path, 'rb') as f: 
             pass
