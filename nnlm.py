@@ -17,6 +17,7 @@ from tokenise import Sentences, SkipGrams
 import argparse 
 import logging 
 import os 
+import wordembeding
 
 ## First, structure 
 
@@ -214,19 +215,11 @@ if __name__ == '__main__':
     word_size = w2v_model.layer1_size
 
     if(args['train']):
+        (features,matrix) = createDocumentMatrices(segments,w2v_model)
         segments = metadata.get_training_segments()
 
         # First we have to prep the segments using the word_2_vec and parsing approach
-        features = []
-        matrix = []
-        for segment in segments: 
-            for sentence in Sentences(segment):
-                for (left,word,right) in SkipGrams(sentence,int(args['window_size'])): 
-                    vectors = []
-                    for gram in left+right: 
-                        vectors.append(w2v_model[gram])
-                    matrix.append(numpy.concatenate(vectors))
-                    features.append(w2v_model[word])
+        (matrix,features) = wordembedding.createDocumentSkipMatrices(segments,w2v_model)
 
         mlpnnlm = MLPNNLM(matrix,features,
                       backing_store=args['backing_store'], 

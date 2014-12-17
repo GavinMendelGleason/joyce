@@ -11,7 +11,19 @@ from tokenise import Sentences
 import logging
 import metadata
 
-def createDocumentMatrices(segments): 
+def createDocumentMatrices(segments,w2v_model): 
+    features = []
+    matrix = []
+    for segment in segments: 
+        for sentence in Sentences(segment):
+            vectors = []
+            for gram in sentence: 
+                vectors.append(w2v_model[gram])
+            matrix.append(numpy.concatenate(vectors))
+
+    return Matrix
+
+def createDocumentSkipMatrices(segments,w2v_model): 
     features = []
     matrix = []
     for segment in segments: 

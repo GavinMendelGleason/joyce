@@ -7,6 +7,7 @@ Run various different authorship analyses and create plots.
 
 import subprocess
 import logging 
+import argparse 
 
 __LOG_PATH__ = './full-run.log'
 __LOG_FORMAT__ = "%(asctime)-15s %(message)s"
@@ -16,6 +17,7 @@ if __name__ == '__main__':
     """    
     parser = argparse.ArgumentParser(description='Run loop over multiple parameters in search for best identification approach.')
     parser.add_argument('--log', help='Log file', default=__LOG_PATH__)
+    args = vars(parser.parse_args())
 
     root = logging.getLogger()
     if root.handlers:
@@ -24,8 +26,10 @@ if __name__ == '__main__':
     logging.basicConfig(filename=args['log'],level=logging.INFO,
                         format=__LOG_FORMAT__)
 
-    default_params = ["./joyce.py","--train", 
-                      "--examine", "/home/rowan/lib/Joycechekovgavin/disputed/politics-and-cattle-disease-1912.txt",
+    # no longer using examine, tests are stored in DB
+    #"--examine", "/home/rowan/lib/Joycechekovgavin/disputed/politics-and-cattle-disease-1912.txt",
+
+    default_params = ["./joyce.py","--train",                       
                       "--log", args['log']]
     
     word_ngrams = [(x,y) for x in range(1,4) for y in range(x,4)]
@@ -35,7 +39,7 @@ if __name__ == '__main__':
                   ['--alg', 'SVC', "--params", "{'probability' : True}"],
                   ['--alg','NuSVC', "--params", "{'probability' : True}"]]
 
-    seg_sizes = [x for x in xrange(500,4000,500)]
+    seg_sizes = [x for x in xrange(500,2000,500)]
 
     logging.info("#" * 80)
 

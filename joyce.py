@@ -11,8 +11,9 @@ from sklearn import cross_validation
 import metadata
 import cPickle as pickle
 #import pickle
-import numpy
+import numpy as np
 import scipy 
+import ast
 
 def document(path): 
     with open (path, "r") as myfile:
@@ -34,7 +35,7 @@ def xvalidation_subsets(tfidf,features,k):
     subsets = []
     ## lost tooth approach
     for i in xrange(size, length-size, size): 
-        new_tfidf = scipy.sparse.coo_matrix.tocsc(numpy.concatenate([(tfidf[0:i]).toarray(),(tfidf[i+size:length]).toarray()],axis=0))
+        new_tfidf = scipy.sparse.coo_matrix.tocsc(np.concatenate([(tfidf[0:i]).toarray(),(tfidf[i+size:length]).toarray()],axis=0))
         new_features = features[0:i] + features[i+size:length]
         subsets.append((new_tfidf,new_features))
 
@@ -59,7 +60,6 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
     
     # evaluate commandline params of python objects
-    import ast
     args['params'] = ast.literal_eval(args['params'])
     args['ngrams'] = ast.literal_eval(args['ngrams'])
 
@@ -76,7 +76,8 @@ if __name__ == '__main__':
     #files = joyce + other
     if args['train']: 
         segments = metadata.get_training_segments()
-        #print "# of Segments: %s" % len(segments)
+        logging.info("# of Segments: %s" % len(segments))
+
         features = metadata.get_training_author_or_not_features('James Joyce')
         #print "# of Features: %s" % len(features) 
 
@@ -93,7 +94,7 @@ if __name__ == '__main__':
         elif args['alg'] == 'LinearSVC': 
             svm = LinearSVC(**args['params'])
 
-        features = numpy.array(features)
+        features = np.array(features)
         X_train, X_test, y_train, y_test = cross_validation.train_test_split(tfidf,features,test_size=0.4, random_state=0)
         clf = svm.fit(X_train, y_train)
         score = clf.score(X_test, y_test)  
@@ -101,9 +102,11 @@ if __name__ == '__main__':
 
         logging.info("Score: %s" % score)
         logging.info("Five way cross validation: %s" % cross)
+        logging.info("Mean of cross validation: %s" % np.mean(cross))
+        logging.info("Variance of cross validation: %s" % np.var(cross))
         f = open(args['backing_store'], 'wb')
         p = pickle.Pickler(f) 
-        p.fast = True 
+        p.fast = True
         p.dump((vec,transformer,svm)) # d is your dictionary
         f.close()
 
@@ -115,29 +118,32 @@ if __name__ == '__main__':
         sys.exit("Unable to load backing store")
 
     # This is just for the craic at this stage.
-    if args['examine']: 
-        # not yet implemented
-        s = metadata.read_file(args['examine'])
-        segments = metadata.chunkify(s)
-        counts = vec.transform(segments) 
-        tfidf = transformer.transform(counts).toarray()
+    # we need to be putting this in the DB...
+    # if args['examine']: 
+    #     # not yet implemented
+    #     s = metadata.read_file(args['examine'])
+    #     segments = metadata.chunkify(s,args['seg_size'])        
+    # else: 
 
-        results = svm.predict(tfidf)
-        proba = None
-        if 'predict_proba' in dir(svm): 
-            proba = svm.predict_proba(tfidf)
-        pos = filter(lambda x: x==1, results)
-        neg = filter(lambda x: x==0, results)
-        logging.info("# pos: %s" % len(pos))
-        logging.info("# neg: %s" % len(neg))
-        logging.info("Segments classified: %s %%" % (len(pos) / float(len(results)) * 100))
-        try: 
-            if proba <> None: 
-                no = [x for [x, y] in proba]
-                yes = [y for [x, y] in proba]
-                logging.info("Mean probability of classifications:  No: %s Yes: %s" % (numpy.mean(no), numpy.mean(yes)))
-        except Exception as e: 
-            logging.error(str(e))
+    segments = metadata.get_test_segments()
+    counts = vec.transform(segments) 
+    tfidf = transformer.transform(counts).toarray()
+    results = svm.predict(tfidf)
+    proba = None
+    if 'predict_proba' in dir(svm): 
+        proba = svm.predict_proba(tfidf)
+    pos = filter(lambda x: x==1, results)
+    neg = filter(lambda x: x==0, results)
+    logging.info("# pos: %s" % len(pos))
+    logging.info("# neg: %s" % len(neg))
+    logging.info("Segments classified: %s %%" % (len(pos) / float(len(results)) * 100))
+    try: 
+        if proba <> None: 
+            no = [x for [x, y] in proba]
+            yes = [y for [x, y] in proba]
+            logging.info("Mean probability of classifications:  No: %s Yes: %s" % (np.mean(no), np.mean(yes)))
+    except Exception as e: 
+        logging.error(str(e))
 
 
 

@@ -10,40 +10,10 @@ from os import getenv
 import re
 from config import * 
 
-def connectDB(host=DB_HOST, user=DB_USER, passwd=DB_PASS, db=DB, **kwargs):
+def connectDB(host=DB_HOST, user=DB_USER, passwd=DB_PASS, db=DB, use_unicode=True, charset="utf8", **kwargs):
     db = MySQLdb.connect(host,user,passwd,db, **kwargs)
     return db
 
-FRESHDB = """
-drop table if exists documents;
-CREATE TABLE documents
-(
-document_id int not null auto_increment,
-author varchar(250) not null,
-date datetime,
-title varchar(250) not null, 
-document LONGBLOB not null,
-primary key (document_id)
-); 
-
-drop table if exists segments;
-CREATE TABLE segments
-(
-segment_id int not null auto_increment,
-document_id int not null,
-segment_text text not null,
-primary key (segment_id)
-);
-
-drop table if exists analysis;
-CREATE TABLE analysis
-(
-run_id int not null auto_increment,
-parameters text not null, 
-primary key (run_id)
-);
-
-"""
 __LIB_PATH__ = getenv("HOME") + '/lib/Joycechekovgavin/'
 __DEFAULT_PATH__ = __LIB_PATH__ + 'corpus/'
 __LOG_PATH__ = __LIB_PATH__ + 'metadata.log'
@@ -60,12 +30,12 @@ def maybeCreateDB():
     if not length == tables:
         cursor.execute(FRESHDB)
     
-def guess_title(path): 
+def guess_title(path,enc): 
     with open(path, 'rb') as f:
         for line in f: 
             sl = line.strip() 
             if not sl == '':                 
-                return sl 
+                return sl.decode('enc') 
         return "Unknown"
 
 def guess_year(path): 
@@ -95,8 +65,15 @@ def last_word_index(chunk,maxsize):
     m = re.search('(\.|!|\?)(\w|\s)*$', chunk[0:maxsize], re.MULTILINE)
     if m: 
         return m.start() + 1
+    else: 
+        m = re.search('\s*\w+(\s)*$', chunk[0:maxsize], re.MULTILINE)
+        if m: 
+            return m.start() + 1
+        else: 
+            return maxsize
 
-def chunkify(doctext,maxsize=1000, underflow_limit=50):
+## No longer using underflow limit
+def chunkify(doctext,maxsize=1000): #, underflow_limit=50):
     doctext = collapse_separators(doctext)
     doctext = remove_space(doctext)
     chunks = []
@@ -104,7 +81,7 @@ def chunkify(doctext,maxsize=1000, underflow_limit=50):
     for i in xrange(0,len(doctext),maxsize): 
         current = overflow + doctext[i:i+maxsize]
         cut_at = last_word_index(current,maxsize)
-        if cut_at and cut_at > maxsize - underflow_limit:
+        if cut_at: # and cut_at > maxsize - underflow_limit:
             chunks.append(current[0:cut_at])
             overflow = current[cut_at:]
         else:
@@ -124,9 +101,23 @@ def collapse_separators(doctext):
 def get_training_segments(): 
     """Get segments, in order."""
 
-    SQL = """select segment_text from segments as s, documents as d
+    SQL = """select title,segment_text 
+             from segments as s, documents as d
              where s.document_id = d.document_id
              and d.type = 'train' 
+             order by segment_id asc;"""
+    db = connectDB() 
+    cursor = db.cursor() 
+    cursor.execute(SQL) 
+    segments = [seg for (seg,) in cursor]
+    return segments
+    
+def get_test_segments(): 
+    """Get test segments, in order."""
+
+    SQL = """select segment_text from segments as s, documents as d
+             where s.document_id = d.document_id
+             and d.type = 'test' 
              order by segment_id asc;"""
     db = connectDB() 
     cursor = db.cursor() 
@@ -147,12 +138,15 @@ def get_all_segments():
     return segments
 
 def segment(db,docid,maxsize=500): 
-    SQL = """select document from documents 
+    SQL = """select title,document from documents 
              where document_id=%(document_id)s"""
     cursor = db.cursor()
     cursor.execute(SQL,{'document_id' : docid})
-    (doctext,) = cursor.fetchone()
-    res = chunkify(doctext,maxsize)
+    (title,doctext,) = cursor.fetchone()
+    try: 
+        res = chunkify(doctext.decode('utf-8'),maxsize)
+    except Exception: 
+        print "Failed to load: "+title
     INSERT = """insert into segments (document_id,segment_text) VALUES (%(document_id)s,%(segment_text)s)"""
     for chunk in res:
         cursor.execute(INSERT, {'document_id' : docid, 
@@ -199,7 +193,10 @@ if __name__ == '__main__':
     
     maybeCreateDB()
 
-    DOC_STATEMENT=""" 
+    DELETE_STATEMENT="""
+       DELETE from documents where title=%(title)s;
+    """
+    DOC_STATEMENT="""
        INSERT into documents
        (author,date,title,document,type)
        VALUES
@@ -223,11 +220,16 @@ if __name__ == '__main__':
             d = {}
             for j in range(0,len(header_names)): 
                 d[header_names[j].lower()] = sheet1.row(i)[j].value
+            print "processing file %s "% d['file']
             p = d['file']
             basedir = os.path.dirname(args['xls'])
             s = read_file(basedir + '/' + p)
+            print "with encoding %s "% d['encoding']
             enc = d['encoding']
-            d['document'] = s.decode(enc).encode('utf-8')
+            d['document'] = s.decode(enc)
+            print type(d['title'])
+            print type(d['document'])
+            cursor.execute(DELETE_STATEMENT, {'title' : d['title']})
             cursor.execute(DOC_STATEMENT, d)
 
     elif args['file_pattern']:
@@ -239,7 +241,7 @@ if __name__ == '__main__':
             s = s.decode(args['encoding'])
             s = s.encode('utf-8')
             d = {'year' : guess_year(p), 
-                 'title' : guess_title(p), 
+                 'title' : guess_title(p,args['encoding']), 
                  'document' : s,
                  'type' : args['type'],
                  'author' : args['author']}
