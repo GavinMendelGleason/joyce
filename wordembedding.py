@@ -11,6 +11,20 @@ from tokenise import Sentences
 import logging
 import metadata
 
+def createDocumentMatrices(segments): 
+    features = []
+    matrix = []
+    for segment in segments: 
+        for sentence in Sentences(segment):
+            for (left,word,right) in SkipGrams(sentence,int(args['window_size'])): 
+                vectors = []
+                for gram in left+right: 
+                    vectors.append(w2v_model[gram])
+                matrix.append(numpy.concatenate(vectors))
+                features.append(w2v_model[word])
+
+    return (matrix,features)
+
 __LOG_FORMAT__ = "%(asctime)-15s %(message)s"
 __LOG_PATH__ = './joyce-predict.log'
 if __name__ == '__main__': 
@@ -28,8 +42,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename=args['log'],level=logging.INFO,
                         format=__LOG_FORMAT__)
 
-    # fix chunking to respect sentence boundaries
-    segments = metadata.get_training_segments()
+    segments = metadata.get_all_segments()
     
     model = None
     for segment in segments: 
