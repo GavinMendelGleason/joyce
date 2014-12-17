@@ -215,7 +215,7 @@ if __name__ == '__main__':
 
     if(args['train']):
         segments = metadata.get_training_segments()
-        # features = metadata.get_joyce_or_not_features()
+
         # First we have to prep the segments using the word_2_vec and parsing approach
         features = []
         matrix = []

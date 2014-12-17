@@ -54,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--cross-validations', help="number of cross-validation segments", default="5")
     parser.add_argument('--alg', help="One of [SVC, LinearSVC, NuSVC]", default ='NuSVC')
     parser.add_argument('--params', help="Algorithm parameters as dictionary string", default="{}")
-    parser.add_argument('--ngrams', help="Pair of (min, max) n-gram size", default='(4,4)')
+    parser.add_argument('--ngrams', help="Pair of (min, max) n-gram size", default='(1,2)')
     parser.add_argument('--analyser', help="Type of tokenisation, one of [word,char_wb]", default='word')
     args = vars(parser.parse_args())
     
@@ -77,13 +77,10 @@ if __name__ == '__main__':
     if args['train']: 
         segments = metadata.get_training_segments()
         #print "# of Segments: %s" % len(segments)
-        features = metadata.get_joyce_or_not_features()
+        features = metadata.get_training_author_or_not_features('James Joyce')
         #print "# of Features: %s" % len(features) 
 
-        #vec = CountVectorizer(min_df=1, ngram_range=args['ngrams'], analyzer='char_wb')
-        #counts = vec.fit_transform(segments)
-
-        vec = CountVectorizer(min_df=1, ngram_range=(1,3), analyzer=args['analyser'])
+        vec = CountVectorizer(min_df=1, ngram_range=args['ngrams'], analyzer=args['analyser'])
         counts = vec.fit_transform(segments)
         
         transformer = TfidfTransformer() 

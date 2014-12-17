@@ -134,6 +134,18 @@ def get_training_segments():
     segments = [seg for (seg,) in cursor]
     return segments
 
+def get_all_segments(): 
+    """Get segments, in order."""
+
+    SQL = """select segment_text from segments as s, documents as d
+             where s.document_id = d.document_id
+             order by segment_id asc;"""
+    db = connectDB() 
+    cursor = db.cursor() 
+    cursor.execute(SQL) 
+    segments = [seg for (seg,) in cursor]
+    return segments
+
 def segment(db,docid,maxsize=500): 
     SQL = """select document from documents 
              where document_id=%(document_id)s"""
@@ -148,8 +160,7 @@ def segment(db,docid,maxsize=500):
     db.commit()
     return res
 
-
-def get_joyce_or_not_features(): 
+def get_training_author_or_not_features(author='James Joyce'): 
     SQL = """select author from documents as d, segments as s
              where d.document_id = s.document_id
              and d.type = 'train'
@@ -157,9 +168,18 @@ def get_joyce_or_not_features():
     db = connectDB()
     cursor = db.cursor()
     cursor.execute(SQL)
-    results = [ 1 if a == 'James Joyce' else 0 for (a,) in cursor ]
+    results = [ 1 if a == author else 0 for (a,) in cursor ]
     return results
 
+def get_all_author_or_not_features(author='James Joyce'): 
+    SQL = """select author from documents as d, segments as s
+             where d.document_id = s.document_id
+             order by segment_id asc;"""
+    db = connectDB()
+    cursor = db.cursor()
+    cursor.execute(SQL)
+    results = [ 1 if a == author else 0 for (a,) in cursor ]
+    return results
 
 if __name__ == '__main__': 
     """We will need some code for populating tables from command line 
@@ -172,7 +192,7 @@ if __name__ == '__main__':
     parser.add_argument('--author', help='Specify the author for this traunch', default='Unknown')
     parser.add_argument('--type', help="Type of input set, 'test', 'train'", default='train')
     parser.add_argument('--encoding', help="Encoding type for import", default='latin_1')
-    parser.add_argument('--seg-size', help="Size of segments", default=2000)
+    parser.add_argument('--seg-size', help="Size of segments", default="2000")
     args = vars(parser.parse_args())
 
     setupLogging() 
