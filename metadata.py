@@ -10,8 +10,8 @@ from os import getenv
 import re
 from config import * 
 
-def connectDB(host=DB_HOST, user=DB_USER, passwd=DB_PASS, db=DB, use_unicode=True, charset="utf8", **kwargs):
-    db = MySQLdb.connect(host,user,passwd,db, **kwargs)
+def connectDB(host=DB_HOST, user=DB_USER, passwd=DB_PASS, db=DB, **kwargs):
+    db = MySQLdb.connect(host,user,passwd,db, use_unicode=True, charset="utf8", **kwargs)
     return db
 
 __LIB_PATH__ = getenv("HOME") + '/lib/Joycechekovgavin/'
@@ -19,17 +19,6 @@ __DEFAULT_PATH__ = __LIB_PATH__ + 'corpus/'
 __LOG_PATH__ = __LIB_PATH__ + 'metadata.log'
 __LOG_FORMAT__ = "%(asctime)-15s %(message)s"
 
-def maybeCreateDB(): 
-    """Create the metadata tables if they don't already exist"""
-    db = connectDB()
-    cursor = db.cursor() 
-    cursor.connection.autocommit(True)
-    tables = len(re.findall("CREATE TABLE", FRESHDB))
-    length = cursor.execute("show tables")
-
-    if not length == tables:
-        cursor.execute(FRESHDB)
-    
 def guess_title(path,enc): 
     with open(path, 'rb') as f:
         for line in f: 
@@ -101,7 +90,7 @@ def collapse_separators(doctext):
 def get_training_segments(): 
     """Get segments, in order."""
 
-    SQL = """select title,segment_text 
+    SQL = """select segment_text 
              from segments as s, documents as d
              where s.document_id = d.document_id
              and d.type = 'train' 
@@ -143,10 +132,7 @@ def segment(db,docid,maxsize=500):
     cursor = db.cursor()
     cursor.execute(SQL,{'document_id' : docid})
     (title,doctext,) = cursor.fetchone()
-    try: 
-        res = chunkify(doctext.decode('utf-8'),maxsize)
-    except Exception: 
-        print "Failed to load: "+title
+    res = chunkify(doctext,maxsize)
     INSERT = """insert into segments (document_id,segment_text) VALUES (%(document_id)s,%(segment_text)s)"""
     for chunk in res:
         cursor.execute(INSERT, {'document_id' : docid, 
@@ -191,8 +177,6 @@ if __name__ == '__main__':
 
     setupLogging() 
     
-    maybeCreateDB()
-
     DELETE_STATEMENT="""
        DELETE from documents where title=%(title)s;
     """
@@ -226,11 +210,14 @@ if __name__ == '__main__':
             s = read_file(basedir + '/' + p)
             print "with encoding %s "% d['encoding']
             enc = d['encoding']
-            d['document'] = s.decode(enc)
-            print type(d['title'])
-            print type(d['document'])
-            cursor.execute(DELETE_STATEMENT, {'title' : d['title']})
-            cursor.execute(DOC_STATEMENT, d)
+            newd = {}
+            newd['author'] = unicode(d['author'])
+            newd['year'] = d['year']
+            newd['title'] = unicode(d['title'])
+            newd['type'] = unicode(d['type'])
+            newd['document'] = s.decode(enc)
+            cursor.execute(DELETE_STATEMENT, newd) 
+            cursor.execute(DOC_STATEMENT, newd)
 
     elif args['file_pattern']:
         files = glob.glob(args['file_pattern'])
