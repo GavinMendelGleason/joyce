@@ -7,9 +7,10 @@ Currently simply reusing the corpus of segments.
 """
 import argparse
 from gensim.models import Word2Vec
-from tokenise import Sentences
+from tokenise import Sentences, SkipGrams
 import logging
 import metadata
+import numpy 
 
 def createDocumentMatrices(segments,w2v_model): 
     features = []
@@ -23,17 +24,25 @@ def createDocumentMatrices(segments,w2v_model):
 
     return Matrix
 
-def createDocumentSkipMatrices(segments,w2v_model): 
+
+
+def get_vec(w2v_model,gram): 
+    if gram in w2v_model: 
+        return w2v_model[gram]
+    else:
+        return numpy.zeros(w2v_model.layer1_size)
+
+def createDocumentSkipMatrices(segments,w2v_model, window_size=3): 
     features = []
     matrix = []
     for segment in segments: 
-        for sentence in Sentences(segment):
-            for (left,word,right) in SkipGrams(sentence,int(args['window_size'])): 
+        for sentence in Sentences(iter(segment)):
+            for (left,word,right) in SkipGrams(sentence,window_size): 
                 vectors = []
                 for gram in left+right: 
-                    vectors.append(w2v_model[gram])
+                    vectors.append(get_vec(w2v_model,gram))
                 matrix.append(numpy.concatenate(vectors))
-                features.append(w2v_model[word])
+                features.append(get_vec(w2v_model,word))
 
     return (matrix,features)
 
@@ -59,9 +68,10 @@ if __name__ == '__main__':
     model = None
     for segment in segments: 
         if model: 
-            model.train(Sentences(segment))
+            test = Sentences(iter(segment))
+            model.train(Sentences(iter(segment)))
         else: 
-            model = Word2Vec(Sentences(segment), size=100, window=5, min_count=5, workers=4)
+            model = Word2Vec(Sentences(iter(segment)), size=150, window=3, min_count=2, workers=4)
 
     model.save(args['file'])
     

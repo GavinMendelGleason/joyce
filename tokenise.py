@@ -75,6 +75,8 @@ class SkipGrams(object):
         return self.__next__()
     
     def __next__(self): 
+        if 2 * self.window_size + 1 >= self.length: 
+            raise StopIteration()
         if self.current + self.window_size >= self.length:
             raise StopIteration()
         else:
@@ -82,12 +84,11 @@ class SkipGrams(object):
             right_slice = [self.right_padding] * max(0, self.current + self.window_size * 2 + 1 - self.length)
             left_start = max(0,self.current)            
             left_end = max(0,self.current+self.window_size)
-            right_start = min(self.length-1, self.current+self.window_size+1)
-            right_end = min(self.length-1, self.current+self.window_size*2+1)
+            right_start = self.current+self.window_size+1
+            right_end = self.current+self.window_size*2+1
             left_result = left_slice + self.sentence[left_start:left_end] 
             right_result = self.sentence[right_start:right_end] + right_slice
-            result = self.sentence[left_end+1]
-            print self.current
+            result = self.sentence[left_end]
             self.current += 1
             return (left_result,result,right_result)
 
@@ -102,7 +103,7 @@ class Sentences(object):
         if type(document) == str: 
             document = iter(document)
 
-        self.words = []
+        # self.words = ['<s>']
         self.stack = ''
         self.document = document
         self.empty = False
@@ -127,7 +128,7 @@ class Sentences(object):
     def __next__(self): 
         if self.empty: 
             raise StopIteration()
-        words = []
+        words = ['<s>']
         while True:
             # if this raises StopIteration() are we grand?
             try: 
@@ -137,6 +138,7 @@ class Sentences(object):
                         words += self.process_token(self.stack)                
                         self.stack = ''
                     words.append(char)
+                    words.append('</s>')
                     return words
                 elif char == r' ' or char == '\n' or char == '\r': 
                     if not self.stack == '':
@@ -152,6 +154,7 @@ class Sentences(object):
                 # if there is something to return, we stop iteration 
                 # on the next go, otherwise stop now.
                 if words != []:
+                    words.append('</s>')
                     return words
                 else:
                     raise StopIteration()
