@@ -110,6 +110,10 @@ if __name__ == '__main__':
         p.dump((vec,transformer,svm)) # d is your dictionary
         f.close()
 
+        if args['degradation']: 
+            """We are going to attempt degredation of results"""
+            pass
+
     if path.isfile(args['backing_store']):        
         f = open(args['backing_store'], 'rb')
         (vec,transformer,svm) = pickle.load(f)
